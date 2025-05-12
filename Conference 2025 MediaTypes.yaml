@@ -1,0 +1,284 @@
+zabbix_export:
+  version: '7.0'
+  media_types:
+    - name: 'Execute Now Item Conference 2025'
+      type: WEBHOOK
+      parameters:
+        - name: App_DateToken
+          value: '{$CNF2025.DATE.TOKEN}'
+        - name: App_DelayToken
+          value: '{$CNF2025.DELAY.TOKEN}'
+        - name: App_ErrorMsg
+          value: '{$CNF2025.MSGERROR}'
+        - name: App_URL
+          value: '{$CNF2025.URL}'
+        - name: App_UserName
+          value: '{$CNF2025.USER.NAME}'
+        - name: App_UserPasswd
+          value: '{$CNF2025.USER.PASS}'
+        - name: LogLevel
+          value: '3'
+        - name: LogPrefijo
+          value: 'Conference 2025 -'
+        - name: Message
+          value: '{ALERT.MESSAGE}'
+        - name: Subject
+          value: '{ALERT.SUBJECT}'
+        - name: To
+          value: '{ALERT.SENDTO}'
+        - name: ZbxAPI_Token
+          value: '{$CNF2025.ZBXAPI.TOKEN}'
+        - name: ZbxAPI_URL
+          value: '{$CNF2025.ZBXAPI.URL}'
+      status: DISABLED
+      script: |
+        var ControlName = "{$CNF2025.DATE.TOKEN}"
+        
+        var params = JSON.parse(value);
+        var datos = JSON.parse(params.Message);
+        
+        var HostID = datos.hostid;
+        var ItemID = datos.itemid;
+        var App_ItemName = datos.itemname;
+        var ItemError = params.Subject;
+        var ZbxAPI_URL = params.ZbxAPI_URL;
+        var ZbxAPI_Token = params.ZbxAPI_Token;
+        var App_URL = params.App_URL;
+        var App_User = params.App_UserName;
+        var App_Passwd = params.App_UserPasswd;
+        var App_DateToken = parseInt(params.App_DateToken);
+        var App_DelayToken = parseInt(params.App_DelayToken);
+        var App_MacroToken = "{$CNF2025.TOKEN}"
+        var LogLevel = params.LogLevel;
+        var LogPrefijo = params.LogPrefijo;
+        
+        if (!ItemError.includes(params.App_ErrorMsg)) {
+            Zabbix.log(LogLevel, LogPrefijo + " No es problema de Token. HostID: " + HostID);
+            return true;
+        }
+        
+        Zabbix.log(LogLevel, LogPrefijo + " " + (Date.now() / 1000) + " | " + params.App_DateToken + " | " + App_DelayToken + " | " + (App_DateToken + App_DelayToken));
+        
+        
+        if (Date.now() < App_DateToken + App_DelayToken * 1000) {
+            Zabbix.log(LogLevel, LogPrefijo + " Ejecucion reciente, saliendo. HostID: " + HostID);
+            ExecuteNow(ItemID);
+            return true;
+        }
+        
+        SetMacro(HostID, ControlName, Date.now());
+        
+        Zabbix.log(LogLevel, LogPrefijo + " Start MediaType Item: " + App_ItemName);
+        
+        try {
+            SetMacro(HostID, App_MacroToken, GetToken(App_URL, App_User, App_Passwd));
+            ExecuteNow(ItemID);
+        }
+        catch (e) {
+            Zabbix.log(LogLevel, LogPrefijo + " MediaType con error: " + e);
+            res = false;
+        }
+        finally {
+            Zabbix.log(LogLevel, LogPrefijo + " End MediaType. Item: " + App_ItemName);
+            res = true;
+        }
+        
+        return res;
+        
+        function ExecuteNow(ItemID) {
+            try {
+                req = new HttpRequest();
+                req.addHeader('Content-Type: application/json');
+                req.addHeader('Authorization: Bearer ' + ZbxAPI_Token);
+        
+                jdata = {
+                    "jsonrpc": "2.0",
+                    "method": "task.create",
+                    "params": [{
+                        "type": 6,
+                        "request": { "itemid": ItemID }
+                    }
+                    ],
+                    "id": 1
+                };
+                req.post(ZbxAPI_URL, JSON.stringify(jdata));
+            }
+            catch (error) {
+                Zabbix.log(LogLevel, LogPrefijo + " Problema al intentar la re-cosecha. ItemID: " + ItemID + error)
+                throw 'Problema al intentar la re-cosecha. ItemID: ' + ItemID + error;
+            }
+        }
+        
+        function GetToken(URL,User,Passwd) {
+            try {
+                req = new HttpRequest();
+                req.addHeader('Content-Type: application/json');
+                res = req.post(URL + "/login", JSON.stringify({ "username": User, "password": Passwd }));
+                token = JSON.parse(res).token;
+                Zabbix.log(LogLevel, LogPrefijo + " Se obtuvo el token. HostID:" + HostID);
+                return token;
+            }
+            catch (error) {
+                Zabbix.log(LogLevel, LogPrefijo + " Problema al obtener el token. HostID:" + HostID + "Error: " + error)
+                throw 'Problema al obtener el token: ' + error;
+            }
+        }
+        
+        function SetMacro(HostID, MacroName, MacroValue) {
+            var HostUserMacroID;
+            try {
+                req = new HttpRequest();
+                req.addHeader('Content-Type: application/json');
+                req.addHeader('Authorization: Bearer ' + ZbxAPI_Token);
+        
+                jdata = {
+                    "jsonrpc": "2.0",
+                    "method": "usermacro.get",
+                    "params": {
+                        "hostids": HostID,
+                        "filter": { "macro": MacroName },
+                        "output": ["hostmacroid"]
+                    },
+                    "id": 1
+                };
+                HostUserMacroID = JSON.parse(req.get(ZbxAPI_URL, JSON.stringify(jdata))).result[0].hostmacroid;
+            }
+            catch (error) {
+                Zabbix.log(LogLevel, LogPrefijo + " Problema al encontrar el id del la macro a setear (" + MacroName + ") HostID:" + HostID);
+                throw 'Problema al encontrar el id de la macro a setear: ' + error;
+            }
+        
+            try {
+                jdata = {
+                    "jsonrpc": "2.0",
+                    "method": "usermacro.update",
+                    "params": {
+                        "hostmacroid": HostUserMacroID,
+                        "value": MacroValue.toString()
+                    },
+                    "id": 1
+                };
+                res = req.post(ZbxAPI_URL, JSON.stringify(jdata));
+                Zabbix.log(LogLevel, LogPrefijo + " UPD macro (" + MacroName + ":" + MacroValue + "). HostID:" + HostID);
+            }
+            catch (error) {
+                Zabbix.log(LogLevel, LogPrefijo + " Error UPD macro (" + MacroName + "). HostID:" + HostID);
+                throw 'Problema al actualizar el valor de la macro: ' + error;
+            }
+        }
+      message_templates:
+        - event_source: INTERNAL
+          operation_mode: PROBLEM
+          subject: '{ITEM.STATE.ERROR}'
+          message: |
+            { "hostid" : "{HOST.ID}",
+            "itemid" : "{ITEM.ID}",
+            "itemname" : "{ITEM.NAME}"
+            }
+    - name: 'Execute Now Item Conference 2025 - External Functions'
+      type: WEBHOOK
+      parameters:
+        - name: App_DateToken
+          value: '{$CNF2025.DATE.TOKEN}'
+        - name: App_DelayToken
+          value: '{$CNF2025.DELAY.TOKEN}'
+        - name: App_ErrorMsg
+          value: '{$CNF2025.MSGERROR}'
+        - name: App_URL
+          value: '{$CNF2025.URL}'
+        - name: App_UserName
+          value: '{$CNF2025.USER.NAME}'
+        - name: App_UserPasswd
+          value: '{$CNF2025.USER.PASS}'
+        - name: LogLevel
+          value: '3'
+        - name: LogPrefijo
+          value: 'Conference 2025 -'
+        - name: Message
+          value: '{ALERT.MESSAGE}'
+        - name: Scripts
+          value: '{$CNF2025.LOADFUNCTIONS}'
+        - name: Subject
+          value: '{ALERT.SUBJECT}'
+        - name: To
+          value: '{ALERT.SENDTO}'
+        - name: ZbxAPI_Token
+          value: '{$CNF2025.ZBXAPI.TOKEN}'
+        - name: ZbxAPI_URL
+          value: '{$CNF2025.ZBXAPI.URL}'
+      script: |
+        var ControlName = "{$CNF2025.DATE.TOKEN}"
+        
+        var params = JSON.parse(value);
+        var datos = JSON.parse(params.Message);
+        
+        var HostID = datos.hostid;
+        var ItemID = datos.itemid;
+        var App_ItemName = datos.itemname;
+        var ItemError = params.Subject;
+        var ZbxAPI_URL = params.ZbxAPI_URL;
+        var ZbxAPI_Token = params.ZbxAPI_Token;
+        var App_URL = params.App_URL;
+        var App_User = params.App_UserName;
+        var App_Passwd = params.App_UserPasswd;
+        var App_DateToken = parseInt(params.App_DateToken);
+        var App_DelayToken = parseInt(params.App_DelayToken);
+        var App_MacroToken = "{$CNF2025.TOKEN}"
+        var LogLevel = params.LogLevel;
+        var LogPrefijo = params.LogPrefijo;
+        
+        eval( params.Scripts )
+        
+        if (!ItemError.includes(params.App_ErrorMsg)) {
+            Zabbix.log(LogLevel, LogPrefijo + " No es problema de Token. HostID: " + HostID);
+            return true;
+        }
+        
+        if (Date.now() < App_DateToken + App_DelayToken * 1000) {
+            Zabbix.log(LogLevel, LogPrefijo + " Ejecucion reciente, saliendo. HostID: " + HostID);
+            ExecuteNow(ItemID);
+            return true;
+        }
+        
+        SetMacro(HostID, ControlName, Date.now());
+        
+        Zabbix.log(LogLevel, LogPrefijo + " Start MediaType Item: " + App_ItemName);
+        
+        try {
+            SetMacro(HostID, App_MacroToken, GetToken(App_URL, App_User, App_Passwd));
+            ExecuteNow(ItemID);
+        }
+        catch (e) {
+            Zabbix.log(LogLevel, LogPrefijo + " MediaType con error: " + e);
+            res = false;
+        }
+        finally {
+            Zabbix.log(LogLevel, LogPrefijo + " End MediaType. Item: " + App_ItemName);
+            res = true;
+        }
+        
+        return res;
+        
+        function GetToken(URL,User,Passwd) {
+            try {
+                req = new HttpRequest();
+                req.addHeader('Content-Type: application/json');
+                res = req.post(URL + "/login", JSON.stringify({ "username": User, "password": Passwd }));
+                token = JSON.parse(res).token;
+                Zabbix.log(LogLevel, LogPrefijo + " Se obtuvo el token. HostID:" + HostID);
+                return token;
+            }
+            catch (error) {
+                Zabbix.log(LogLevel, LogPrefijo + " Problema al obtener el token. HostID:" + HostID + "Error: " + error)
+                throw 'Problema al obtener el token: ' + error;
+            }
+        }
+      message_templates:
+        - event_source: INTERNAL
+          operation_mode: PROBLEM
+          subject: '{ITEM.STATE.ERROR}'
+          message: |
+            { "hostid" : "{HOST.ID}",
+            "itemid" : "{ITEM.ID}",
+            "itemname" : "{ITEM.NAME}"
+            }

@@ -1,0 +1,225 @@
+zabbix_export:
+  version: '7.0'
+  template_groups:
+    - uuid: 7df96b18c230490a9a0a9e2307226338
+      name: Templates
+  templates:
+    - uuid: 58d9c2b2da024e40bf34b9b6866863c7
+      template: 'Conference 2025'
+      name: 'Conference 2025'
+      vendor:
+        name: 'Custos Monitoring'
+        version: 6.4-0
+      groups:
+        - name: Templates
+        - name: Custos Monitoring/Templates
+      items:
+        - uuid: c891745d3a764a509cc821be61854302
+          name: 'Get Data A'
+          type: HTTP_AGENT
+          key: get.data.a
+          value_type: TEXT
+          trends: '0'
+          status: DISABLED
+          preprocessing:
+            - type: CHECK_NOT_SUPPORTED
+              parameters:
+                - '0'
+                - '{$CNF2025.MSGERROR}'
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '{$CNF2025.NOAUTH.FLAG}'
+            - type: CHECK_NOT_SUPPORTED
+              parameters:
+                - '1'
+                - '{$CNF2025.MSGERROR}'
+              error_handler: CUSTOM_ERROR
+              error_handler_params: 'Error no capturado'
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var ZbxAPI_Token = "{$CNF2025.ZBXAPI.TOKEN}"
+                  var HostID = "{$CNF2025.HOST.ID}"
+                  var ItemID = "{$CNF2025.ITEM.ID}"
+                  var ZbxApi_URL = "{$CNF2025.ZBXAPI.URL}"
+                  var App_URL = "{$CNF2025.URL}"
+                  var App_User = "{$CNF2025.USER.NAME}"
+                  var App_Passwd = "{$CNF2025.USER.PASS}"
+                  
+                  Zabbix.log( 3, "Conference 2025 - Start preproc" );
+                  try {
+                     if (value != {$CNF2025.NOAUTH.FLAG}) {
+                        return value;
+                     }
+                  
+                     SetToken(GetToken());
+                     ExecuteNow();
+                     return null;
+                  
+                     function ExecuteNow() {
+                        try {
+                           req = new HttpRequest();
+                           req.addHeader('Content-Type: application/json');
+                           req.addHeader('Authorization: Bearer ' + ZbxAPI_Token );
+                  
+                           jdata = { "jsonrpc": "2.0",
+                                     "method": "task.create",
+                                     "params": [ { "type": 6,
+                                                   "request": { "itemid": ItemID }
+                                                 }
+                                               ],
+                                     "id": 1
+                                   };
+                            req.post( ZbxApi_URL, JSON.stringify( jdata ) );
+                        }
+                        catch (error) {
+                           throw 'Problema al intentar la re-cosecha: '+ error;
+                        }
+                     }
+                  
+                     function GetToken(){
+                        try {
+                           req = new HttpRequest();
+                           req.addHeader('Content-Type: application/json');
+                           res = req.post( App_URL  + "/login" , JSON.stringify({"username": App_User, "password": App_Passwd}));
+                           token = JSON.parse(res).token;
+                           Zabbix.log( 3, "Conference 2025 - Se obtuvo el token" );
+                           return token;
+                        }
+                        catch (error) {
+                           throw 'Problema al obtener el token: '+ error;
+                        }
+                     }
+                  
+                     function SetToken(MacroValue) {
+                        //Get del ID de la usermacro
+                        try {
+                           req = new HttpRequest();
+                           req.addHeader('Content-Type: application/json');
+                           req.addHeader('Authorization: Bearer ' + ZbxAPI_Token);
+                  
+                           jdata = { "jsonrpc": "2.0",
+                                     "method": "usermacro.get",
+                                     "params": { "hostids": HostID,
+                                                 "filter": { "macro": "{" + "$CNF2025.TOKEN}" },
+                                                 "output": ["hostmacroid"]
+                                               },
+                                     "id": 1
+                                   };
+                           const HostUserMacroID = JSON.parse( req.get( ZbxApi_URL, JSON.stringify( jdata ) ) ).result[0].hostmacroid;
+                        }
+                        catch (error) {
+                           throw 'Problema al encontrar el id de la macro a setear: '+ error;
+                        }
+                  
+                        //Seteo de la macro MacroName con el valor 'value' recibido como param de entrada en este script
+                        try {
+                           jdata = { "jsonrpc": "2.0",
+                                     "method": "usermacro.update",
+                                     "params": { "hostmacroid": HostUserMacroID,
+                                                 "value": MacroValue
+                                               },
+                                     "id": 1
+                                   };
+                           res = req.post( ZbxApi_URL, JSON.stringify( jdata ) );
+                           Zabbix.log( 3, "Conference 2025 - UPD macro del token" );
+                        }
+                        catch (error) {
+                           throw 'Problema al actualizar el valor de la macro: '+ error;
+                        }
+                     }
+                  }
+                  finally {
+                     Zabbix.log( 3, "Conference 2025 - End preproc" );
+                  }
+          url: '{$CNF2025.URL}/GetDataA'
+          post_type: JSON
+          posts: '{"token": "{$CNF2025.TOKEN}"}'
+          request_method: POST
+      tags:
+        - tag: 'Conference 2025'
+      macros:
+        - macro: '{$CNF2025.DATE.TOKEN}'
+          value: '0'
+          description: 'Time stamp del momento de obtención del token Para uso interno, no modificar este valor'
+        - macro: '{$CNF2025.DELAY.TOKEN}'
+          value: '5'
+          description: 'Segundos de retardo para obtener un nuevo token'
+        - macro: '{$CNF2025.HOST.ID}'
+          description: 'Identificador del Host representando la App'
+        - macro: '{$CNF2025.ITEM.ID}'
+          description: 'Identificador interno del Item de consulta de la App'
+        - macro: '{$CNF2025.MSGERROR}'
+          value: 'Invalid token'
+          description: 'Mensaje de error entregado por la App cuando el token es incorrecto'
+        - macro: '{$CNF2025.NOAUTH.FLAG}'
+          value: '-127'
+          description: 'Valor bandera para detectar token incorrecto'
+        - macro: '{$CNF2025.TOKEN}'
+          description: 'Token para consultas contra la App'
+        - macro: '{$CNF2025.URL}'
+          description: 'URL de la App a consultar'
+        - macro: '{$CNF2025.USER.NAME}'
+          description: 'Usuario para conectarse a la App'
+        - macro: '{$CNF2025.USER.PASS}'
+          description: 'Password del usuario para conectarse a la App'
+        - macro: '{$CNF2025.ZBXAPI.TOKEN}'
+          description: 'Token para conectarse a Zabbix'
+        - macro: '{$CNF2025.ZBXAPI.URL}'
+          description: 'URL de la API de Zabbix'
+    - uuid: 7306b78141c2437984134ba0fe7462a0
+      template: 'Conference 2025 - Tags'
+      name: 'Conference 2025 - Tags'
+      vendor:
+        name: 'Custos Monitoring'
+        version: 6.4-0
+      groups:
+        - name: Templates
+        - name: Custos Monitoring/Templates
+      groups:
+        - name: Templates
+      items:
+        - uuid: 6625b440e1854ca8b0cedd37b0ef3363
+          name: 'Get Data A'
+          type: HTTP_AGENT
+          key: get.data.a
+          value_type: TEXT
+          trends: '0'
+          status: DISABLED
+          url: '{$CNF2025.URL}/GetDataA'
+          post_type: JSON
+          posts: '{"token": "{$CNF2025.TOKEN}"}'
+          request_method: POST
+          tags:
+            - tag: reExecuteOnUnsupported
+              value: Conference2025
+      tags:
+        - tag: 'Conference 2025'
+      macros:
+        - macro: '{$CNF2025.DATE.TOKEN}'
+          value: '0'
+          description: 'Time stamp del momento de obtención del token Para uso interno, no modificar este valor'
+        - macro: '{$CNF2025.DELAY.TOKEN}'
+          value: '5'
+          description: 'Segundos de retardo para obtener un nuevo token'
+        - macro: '{$CNF2025.HOST.ID}'
+          description: 'Identificador del Host representando la App'
+        - macro: '{$CNF2025.ITEM.ID}'
+          description: 'Identificador interno del Item de consulta de la App'
+        - macro: '{$CNF2025.MSGERROR}'
+          value: 'Invalid token'
+          description: 'Mensaje de error entregado por la App cuando el token es incorrecto'
+        - macro: '{$CNF2025.NOAUTH.FLAG}'
+          value: '-127'
+          description: 'Valor bandera para detectar token incorrecto'
+        - macro: '{$CNF2025.TOKEN}'
+          description: 'Token para consultas contra la App'
+        - macro: '{$CNF2025.URL}'
+          description: 'URL de la App a consultar'
+        - macro: '{$CNF2025.USER.NAME}'
+          description: 'Usuario para conectarse a la App'
+        - macro: '{$CNF2025.USER.PASS}'
+          description: 'Password del usuario para conectarse a la App'
+        - macro: '{$CNF2025.ZBXAPI.TOKEN}'
+          description: 'Token para conectarse a Zabbix'
+        - macro: '{$CNF2025.ZBXAPI.URL}'
+          description: 'URL de la API de Zabbix'
