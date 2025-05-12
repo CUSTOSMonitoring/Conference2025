@@ -1,6 +1,8 @@
 zabbix_export:
   version: '7.0'
   template_groups:
+    - uuid: 6509e424485941c58072a218045aff29
+      name: 'Custos Monitoring/Templates'
     - uuid: 7df96b18c230490a9a0a9e2307226338
       name: Templates
   templates:
@@ -9,10 +11,10 @@ zabbix_export:
       name: 'Conference 2025'
       vendor:
         name: 'Custos Monitoring'
-        version: 6.4-0
+        version: 7.0-0
       groups:
+        - name: 'Custos Monitoring/Templates'
         - name: Templates
-        - name: Custos Monitoring/Templates
       items:
         - uuid: c891745d3a764a509cc821be61854302
           name: 'Get Data A'
@@ -169,14 +171,12 @@ zabbix_export:
     - uuid: 7306b78141c2437984134ba0fe7462a0
       template: 'Conference 2025 - Tags'
       name: 'Conference 2025 - Tags'
+      groups:
+        - name: 'Custos Monitoring/Templates'
+        - name: Templates
       vendor:
         name: 'Custos Monitoring'
-        version: 6.4-0
-      groups:
-        - name: Templates
-        - name: Custos Monitoring/Templates
-      groups:
-        - name: Templates
+        version: 7.0-0  
       items:
         - uuid: 6625b440e1854ca8b0cedd37b0ef3363
           name: 'Get Data A'

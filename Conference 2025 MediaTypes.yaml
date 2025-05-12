@@ -206,6 +206,7 @@ zabbix_export:
           value: '{$CNF2025.ZBXAPI.TOKEN}'
         - name: ZbxAPI_URL
           value: '{$CNF2025.ZBXAPI.URL}'
+      status: DISABLED
       script: |
         var ControlName = "{$CNF2025.DATE.TOKEN}"
         
