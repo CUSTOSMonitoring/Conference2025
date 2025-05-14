@@ -228,38 +228,37 @@ zabbix_export:
         var LogLevel = params.LogLevel;
         var LogPrefijo = params.LogPrefijo;
         
-        eval( params.Scripts )
-        
-        if (!ItemError.includes(params.App_ErrorMsg)) {
-            Zabbix.log(LogLevel, LogPrefijo + " No es problema de Token. HostID: " + HostID);
-            return true;
-        }
-        
-        if (Date.now() < App_DateToken + App_DelayToken * 1000) {
-            Zabbix.log(LogLevel, LogPrefijo + " Ejecucion reciente, saliendo. HostID: " + HostID);
-            ExecuteNow(ItemID);
-            return true;
-        }
-        
-        SetMacro(HostID, ControlName, Date.now());
-        
         Zabbix.log(LogLevel, LogPrefijo + " Start MediaType Item: " + App_ItemName);
         
         try {
-            SetMacro(HostID, App_MacroToken, GetToken(App_URL, App_User, App_Passwd));
-            ExecuteNow(ItemID);
+           if (!ItemError.includes(params.App_ErrorMsg)) {
+              Zabbix.log(LogLevel, LogPrefijo + " No es problema de Token. Error:" + ItemError + ". HostID: " + HostID);
+              return true;
+           }
+        
+           eval( params.Scripts )  //cargamos las funciones
+        
+           if (Date.now() < App_DateToken + App_DelayToken * 1000) {
+              Zabbix.log(LogLevel, LogPrefijo + " Ejecucion reciente, saliendo. HostID: " + HostID);
+              ExecuteNow(ItemID);
+              return true;
+           }
+        
+           SetMacro(HostID, ControlName, Date.now());
+        
+           SetMacro(HostID, App_MacroToken, GetToken(App_URL, App_User, App_Passwd));
+           ExecuteNow(ItemID);
+           return true;
         }
         catch (e) {
             Zabbix.log(LogLevel, LogPrefijo + " MediaType con error: " + e);
-            res = false;
+            return false;
         }
         finally {
             Zabbix.log(LogLevel, LogPrefijo + " End MediaType. Item: " + App_ItemName);
-            res = true;
         }
         
-        return res;
-        
+        // Esta función puede pertenecer a otro "módulo" de funciones específicas de la APP
         function GetToken(URL,User,Passwd) {
             try {
                 req = new HttpRequest();

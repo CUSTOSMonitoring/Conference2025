@@ -30,19 +30,15 @@ zabbix_export:
                 - '{$CNF2025.MSGERROR}'
               error_handler: CUSTOM_VALUE
               error_handler_params: '{$CNF2025.NOAUTH.FLAG}'
-            - type: CHECK_NOT_SUPPORTED
-              parameters:
-                - '1'
-                - '{$CNF2025.MSGERROR}'
-              error_handler: CUSTOM_ERROR
-              error_handler_params: 'Error no capturado'
             - type: JAVASCRIPT
               parameters:
                 - |
                   var ZbxAPI_Token = "{$CNF2025.ZBXAPI.TOKEN}"
+                  var ZbxApi_URL = "{$CNF2025.ZBXAPI.URL}"
+                  
                   var HostID = "{$CNF2025.HOST.ID}"
                   var ItemID = "{$CNF2025.ITEM.ID}"
-                  var ZbxApi_URL = "{$CNF2025.ZBXAPI.URL}"
+                  
                   var App_URL = "{$CNF2025.URL}"
                   var App_User = "{$CNF2025.USER.NAME}"
                   var App_Passwd = "{$CNF2025.USER.PASS}"
@@ -50,6 +46,7 @@ zabbix_export:
                   Zabbix.log( 3, "Conference 2025 - Start preproc" );
                   try {
                      if (value != {$CNF2025.NOAUTH.FLAG}) {
+                        Zabbix.log( 3, "Conference 2025 - No es problema de token" );
                         return value;
                      }
                   
@@ -137,15 +134,43 @@ zabbix_export:
           post_type: JSON
           posts: '{"token": "{$CNF2025.TOKEN}"}'
           request_method: POST
+        - uuid: 04a5a1572a20412ba7b948037af07aa7
+          name: 'Total de pedidos'
+          type: DEPENDENT
+          key: get.total
+          delay: '0'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.total
+          master_item:
+            key: get.totconsultas
+        - uuid: 18b2bd8b1c2047dda3990e432d95e579
+          name: 'Total de pedidos de datos'
+          type: DEPENDENT
+          key: get.total.data
+          delay: '0'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.totalData
+          master_item:
+            key: get.totconsultas
+        - uuid: fc6d04bbb91649e0b19e62d211907e41
+          name: 'RAW - Consultas'
+          type: HTTP_AGENT
+          key: get.totconsultas
+          history: '0'
+          value_type: TEXT
+          trends: '0'
+          status: DISABLED
+          url: '{$CNF2025.URL}/TotConsultas'
+          request_method: POST
+          tags:
+            - tag: raw
       tags:
         - tag: 'Conference 2025'
       macros:
-        - macro: '{$CNF2025.DATE.TOKEN}'
-          value: '0'
-          description: 'Time stamp del momento de obtención del token Para uso interno, no modificar este valor'
-        - macro: '{$CNF2025.DELAY.TOKEN}'
-          value: '5'
-          description: 'Segundos de retardo para obtener un nuevo token'
         - macro: '{$CNF2025.HOST.ID}'
           description: 'Identificador del Host representando la App'
         - macro: '{$CNF2025.ITEM.ID}'
@@ -159,10 +184,13 @@ zabbix_export:
         - macro: '{$CNF2025.TOKEN}'
           description: 'Token para consultas contra la App'
         - macro: '{$CNF2025.URL}'
+          value: 'https://aws01.custosmonitoring.com:1112/api'
           description: 'URL de la App a consultar'
         - macro: '{$CNF2025.USER.NAME}'
+          value: pedro
           description: 'Usuario para conectarse a la App'
         - macro: '{$CNF2025.USER.PASS}'
+          value: ordep
           description: 'Password del usuario para conectarse a la App'
         - macro: '{$CNF2025.ZBXAPI.TOKEN}'
           description: 'Token para conectarse a Zabbix'
@@ -171,12 +199,12 @@ zabbix_export:
     - uuid: 7306b78141c2437984134ba0fe7462a0
       template: 'Conference 2025 - Tags'
       name: 'Conference 2025 - Tags'
+      vendor:
+        name: 'Custos Monitoring'
+        version: 7.0-0
       groups:
         - name: 'Custos Monitoring/Templates'
         - name: Templates
-      vendor:
-        name: 'Custos Monitoring'
-        version: 7.0-0  
       items:
         - uuid: 6625b440e1854ca8b0cedd37b0ef3363
           name: 'Get Data A'
@@ -197,14 +225,10 @@ zabbix_export:
       macros:
         - macro: '{$CNF2025.DATE.TOKEN}'
           value: '0'
-          description: 'Time stamp del momento de obtención del token Para uso interno, no modificar este valor'
+          description: 'TimeStamp del momento de obtención del token Para uso interno.'
         - macro: '{$CNF2025.DELAY.TOKEN}'
           value: '5'
           description: 'Segundos de retardo para obtener un nuevo token'
-        - macro: '{$CNF2025.HOST.ID}'
-          description: 'Identificador del Host representando la App'
-        - macro: '{$CNF2025.ITEM.ID}'
-          description: 'Identificador interno del Item de consulta de la App'
         - macro: '{$CNF2025.MSGERROR}'
           value: 'Invalid token'
           description: 'Mensaje de error entregado por la App cuando el token es incorrecto'
@@ -214,10 +238,13 @@ zabbix_export:
         - macro: '{$CNF2025.TOKEN}'
           description: 'Token para consultas contra la App'
         - macro: '{$CNF2025.URL}'
+          value: 'https://aws01.custosmonitoring.com:1112/api'
           description: 'URL de la App a consultar'
         - macro: '{$CNF2025.USER.NAME}'
+          value: hola
           description: 'Usuario para conectarse a la App'
         - macro: '{$CNF2025.USER.PASS}'
+          value: aloh
           description: 'Password del usuario para conectarse a la App'
         - macro: '{$CNF2025.ZBXAPI.TOKEN}'
           description: 'Token para conectarse a Zabbix'
